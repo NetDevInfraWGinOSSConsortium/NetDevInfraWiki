@@ -1,0 +1,2 @@
+# NetDevInfraWiki
+開発基盤部会のLLM Wiki（元ネタ：techinfoofmicrosofttech、opentouryo、dotnetdevelopmentinfrastructure）
