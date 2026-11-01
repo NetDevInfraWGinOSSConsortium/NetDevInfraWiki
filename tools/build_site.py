@@ -49,6 +49,8 @@ for cell in ("th", "td"):
 FENCE = re.compile(r"^\s*(?:>\s*)*(```|~~~)")
 TABLE_DELIMITER = re.compile(r"^\s*(?:>\s*)*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$")
 ATTRIBUTE_URL = re.compile(r'\b(href|src)="([^"]*)"')
+UNRENDERED_BOLD = re.compile(r">[^<]*\*\*[^*<]+\*\*[^<]*<")
+CODE_ELEMENT = re.compile(r"<pre.*?</pre>|<code>.*?</code>", re.DOTALL)
 ANY_ID = re.compile(r'\bid="([^"]*)"')
 HAS_SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
 WIKI_PREFIX = re.compile(
@@ -152,6 +154,7 @@ class Site:
         self.anchor_refs = []    # (参照元, 参照先, アンカー)
         self.broken = Counter()
         self.broken_fragments = set()  # 同じページの、見出しに無いアンカー
+        self.unrendered_bold = []      # 太字にならなかった ** が残るページ
 
     def scan(self):
         listed = subprocess.run(
@@ -310,6 +313,8 @@ class Site:
         for stem, rel in sorted(self.pages.items()):
             tokens, body = self.render(self.read(rel), rel.stem)
             self.ids[stem] = set(ANY_ID.findall(body))
+            if UNRENDERED_BOLD.search(CODE_ELEMENT.sub("", body)):
+                self.unrendered_bold.append(rel.stem)
             name = self.output_name(stem)
             page = self.layout(
                 page_title(tokens, rel.stem), page_description(tokens),
@@ -353,6 +358,7 @@ class Site:
             ),
             "broken_links": sorted(self.broken),
             "broken_anchors": broken_anchors,
+            "unrendered_bold": self.unrendered_bold,
             "size_mb": round(size / 1024 / 1024, 1),
         }
         print(json.dumps({
