@@ -1,0 +1,74 @@
+# Wiki を GitHub Pages に公開する（検索エンジンの対象にするため）。
+# GitHub Wiki には x-robots-tag: none が付くので、Wiki のままではインデックスされない。
+name: publish-site
+
+on:
+  # Wiki の更新。`git push` での更新でも発火するかは、導入のときに確かめる。
+  gollum:
+  # 変換スクリプトの更新
+  push:
+    branches: [main]
+    paths:
+      - "tools/**"
+      - ".github/workflows/publish-site.yml"
+  # 手動
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 続けて更新されたら、最後の分だけを公開する。
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # 最終更新日をサイトマップに書くので、履歴もすべて取る。
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - run: pip install -r tools/requirements.txt
+
+      - name: Build
+        env:
+          GOOGLE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
+        run: >
+          python tools/build_site.py
+          --wiki wiki
+          --out _site
+          --base-url "https://netdevinfrawginossconsortium.github.io/NetDevInfraWiki/"
+          --google-verification "$GOOGLE_VERIFICATION"
+          --report build-report.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-report
+          path: build-report.json
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
